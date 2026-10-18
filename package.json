@@ -1,10 +1,14 @@
 {
-  "name": "ipad-https-agent",
+  "name": "ios-remote-automation-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Personal iPad automation through an outbound HTTPS application queue",
+  "description": "Remote iPad/iPhone control and automation from anywhere over HTTPS",
   "type": "module",
-  "engines": {"node": ">=20.19"},
-  "scripts": {"test": "node --test cloud/worker.test.mjs devbox/queue-client.test.mjs"},
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "test": "node --test cloud/worker.test.mjs devbox/queue-client.test.mjs"
+  },
   "license": "MIT"
 }
