@@ -2,7 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 export const root = new URL('.', import.meta.url).pathname;
 export async function configuration() {
-  const config = JSON.parse(await readFile(new URL('./agent-private.json', import.meta.url), 'utf8'));
+  const config = JSON.parse(await readFile(process.env.IPAD_QUEUE_CONFIG || new URL('./agent-private.json', import.meta.url), 'utf8'));
   const url = new URL(config.url);
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || (url.port && url.port !== '443')) throw new Error('Only authenticated HTTPS on port 443 is supported');
   if (typeof config.token !== 'string' || config.token.length < 32) throw new Error('Agent credential is missing');

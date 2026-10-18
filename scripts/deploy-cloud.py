@@ -43,6 +43,7 @@ def main():
         'device_token': secrets.token_urlsafe(32),
         'device_id': args.device_id,
     }
+    private.setdefault('bot_token', secrets.token_urlsafe(32))
     private_write(PRIVATE, private)
     state = json.loads(STATE.read_text()) if STATE.exists() else {
         'account': ACCOUNT, 'script': args.script_name, 'database_name': args.script_name,
@@ -88,7 +89,7 @@ def main():
     state['subdomain'] = subdomain
     bindings = [{'name': 'DB', 'type': 'd1', 'id': state['database_id']},
         {'name': 'DEVICE_ID', 'type': 'plain_text', 'text': private['device_id']}]
-    for name, key in [('CONTROLLER_TOKEN', 'controller_token'), ('AGENT_TOKEN', 'agent_token'), ('DEVICE_TOKEN', 'device_token')]:
+    for name, key in [('CONTROLLER_TOKEN', 'controller_token'), ('AGENT_TOKEN', 'agent_token'), ('DEVICE_TOKEN', 'device_token'), ('BOT_TOKEN', 'bot_token')]:
         bindings.append({'name': name, 'type': 'secret_text', 'text': private[key]})
     metadata = {'main_module': 'worker.mjs', 'compatibility_date': '2026-10-18', 'bindings': bindings,
         'observability': {'enabled': False}}

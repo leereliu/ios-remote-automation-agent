@@ -34,6 +34,10 @@ flowchart LR
 
 设备自动化依赖 [Appium WebDriverAgent](https://github.com/appium/WebDriverAgent)，以 Git submodule 固定在 `3d6a4e03cdd673e540289c610f7e189f8ffea434`。集成补丁位于 `patches/`，原生领取器位于 `device/`，许可证保留在 `third_party/`。该 WDA 仓库已迁移至 [appium-ios monorepo](https://github.com/appium/appium-ios/tree/main/packages/webdriveragent)；当前固定已验收版本，尚未迁移上游路径。
 
+## 云端 Bot 接入
+
+可选的 [Bot 适配器](bot/README.md) 允许 Grok Bot 等云端助手直接调用现有 operation 队列，使用其自身额度，无需运行 Codex 或开发机目标循环。适配器提供单任务预算、截图文件回传与独立 bot 角色。注册 `bot/mcp.mjs` 命令型 MCP 并安装 `bot/SKILL.md` 后，需要通过实际平台验收，才能停用原控制器。适配器不会启用额外付费。
+
 ## 获取与本地校验
 
 ```bash

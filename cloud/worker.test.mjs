@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
 import worker, {validateOperation} from './worker.mjs';
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
-const env = {CONTROLLER_TOKEN:'controller-'+ 'a'.repeat(40),AGENT_TOKEN:'agent-'+ 'b'.repeat(40),DEVICE_TOKEN:'device-'+ 'c'.repeat(40),DEVICE_ID:'test-ipad'};
+const env = {CONTROLLER_TOKEN:'controller-'+ 'a'.repeat(40),AGENT_TOKEN:'agent-'+ 'b'.repeat(40),DEVICE_TOKEN:'device-'+ 'c'.repeat(40),BOT_TOKEN:'bot-'+ 'd'.repeat(40),DEVICE_ID:'test-ipad'};
 const call = (path, role, body, scheme='https') => worker.fetch(new Request(`${scheme}://queue.example${path}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(role?{Authorization:`Bearer ${env[role]}`}:{})},body:body===undefined?undefined:JSON.stringify(body)}),env);
 test('only HTTPS is accepted; health discloses no device information',async()=>{
   assert.equal((await call('/health',null,undefined,'http')).status,400);
@@ -24,6 +24,15 @@ test('unauthenticated and wrong-role requests cannot access device or goal APIs'
   assert.equal((await call('/v1/device/claim','CONTROLLER_TOKEN',{device_id:'test-ipad'})).status,403);
   assert.equal((await call('/v1/device/claim','DEVICE_TOKEN',{device_id:'another-ipad'})).status,403);
   assert.equal((await call('/v1/agent/claim','DEVICE_TOKEN',{})).status,403);
+});
+test('bot credentials cannot submit, claim, finish or read Codex goals or impersonate the device',async()=>{
+  for (const [path,body] of [
+    ['/v1/goals',{prompt:'test'}], ['/v1/agent/claim',{}], ['/v1/agent/result',{}],
+    ['/v1/device/claim',{device_id:'test-ipad'}], ['/v1/device/result',{}],
+    ['/v1/goals/12345678-1234-1234-1234-123456789abc',undefined],
+  ]) assert.equal((await call(path,'BOT_TOKEN',body)).status,403,path);
+  assert.equal((await call('/v1/operations','BOT_TOKEN',{action:'shell',args:{command:'id'}})).status,400);
+  assert.equal((await call('/v1/operations','BOT_TOKEN',{action:'screenshot',args:{url:'https://elsewhere.invalid'}})).status,400);
 });
 test('operation schema rejects forwarding, arbitrary URLs, unknown arguments and bad coordinates',()=>{
   for(const value of [

@@ -19,7 +19,7 @@ async function roleOf(request, env) {
   const h = request.headers.get('Authorization') || '';
   if (!h.startsWith('Bearer ') || h.length > 256) fail(401, 'Authentication required');
   const value = h.slice(7);
-  for (const [role, name] of [['controller', 'CONTROLLER_TOKEN'], ['agent', 'AGENT_TOKEN'], ['device', 'DEVICE_TOKEN']]) {
+  for (const [role, name] of [['controller', 'CONTROLLER_TOKEN'], ['agent', 'AGENT_TOKEN'], ['device', 'DEVICE_TOKEN'], ['bot', 'BOT_TOKEN']]) {
     if (await equalSecret(value, env[name])) return role;
   }
   fail(401, 'Authentication required');
@@ -154,13 +154,13 @@ export default {
         requireRole(role, ['agent']); return json(await finishJob(env, 'goal', await bodyOf(request, 40000)));
       }
       if (path === '/v1/device' && request.method === 'GET') {
-        requireRole(role, ['controller', 'agent']);
+        requireRole(role, ['controller', 'agent', 'bot']);
         return json(await env.DB.prepare('SELECT * FROM device_state WHERE id=?').bind(env.DEVICE_ID).first());
       }
       const kind = path.startsWith('/v1/operations') ? 'operation' : path.startsWith('/v1/goals') ? 'goal' : null;
       const prefix = kind === 'operation' ? '/v1/operations' : '/v1/goals';
       if (kind && path === prefix && request.method === 'POST') {
-        requireRole(role, kind === 'goal' ? ['controller'] : ['controller', 'agent']);
+        requireRole(role, kind === 'goal' ? ['controller'] : ['controller', 'agent', 'bot']);
         const body = await bodyOf(request, 16000);
         if (kind === 'goal') {
           if (Object.keys(body).some(k => k !== 'prompt') || typeof body.prompt !== 'string' || !body.prompt.trim() || body.prompt.length > 4000) fail(400, 'Invalid goal');
@@ -169,7 +169,7 @@ export default {
         return json(await insertJob(env, kind, validateOperation(body), request.headers.get('Idempotency-Key')), 201);
       }
       if (kind && request.method === 'GET' && path.startsWith(prefix + '/')) {
-        requireRole(role, kind === 'goal' ? ['controller', 'agent'] : ['controller', 'agent']);
+        requireRole(role, kind === 'goal' ? ['controller', 'agent'] : ['controller', 'agent', 'bot']);
         const id = path.slice(prefix.length + 1);
         if (!/^[a-f0-9-]{36}$/.test(id)) fail(404, 'Task not found');
         const row = await env.DB.prepare('SELECT * FROM jobs WHERE id=? AND kind=? AND device_id=?').bind(id, kind, env.DEVICE_ID).first();

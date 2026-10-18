@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-Remote control and automate your iPad or iPhone from anywhere over HTTPS. Describe a task in natural language, let a persistent host run Codex CLI, and have an on-device WebDriverAgent runner carry out the actions and return screenshots.
+Remote control and automate your iPad or iPhone from anywhere over HTTPS. Describe a task in natural language, let a persistent host or a hosted Bot plan the actions, and have an on-device WebDriverAgent runner carry them out and return screenshots.
 
 **Prototype status:** tested on a physical iPad. iPhone compatibility has not yet been validated. The device must remain powered, connected and usable, with its WDA/XCTest session alive. Automatic recovery after a runner exit, device reboot or signing expiration is not implemented.
 
@@ -40,6 +40,10 @@ The background agent polls roughly every 10 seconds, starts a restricted Codex C
 This helps with transient UI, such as showing playback controls, seeking and capturing the resulting screen. The planned input and capture delay are limited to 8 seconds; actual wall-clock time includes system overhead. A sequence is not transactional: actions already performed cannot be rolled back, and uncertain actions must never be replayed automatically.
 
 Existing service names and MCP tool names retain their `ipad-https-agent` and `ipad_` prefixes for compatibility. See [validation notes](docs/validation.md) for the scope of the iPad test; do not assume an arbitrary app or iPhone configuration has been certified.
+
+## Hosted Bot alternative
+
+The optional [hosted Bot adapter](bot/README.md) lets an assistant such as Grok Bot use the existing operation queue directly from its cloud computer. It provides task budgets and saved screenshot attachments without running Codex or the Devbox goal loop. It uses the assistant's own allowance and never enables additional paid usage. Register `bot/mcp.mjs` as a Command / stdio MCP connector and install the workflow in `bot/SKILL.md`; live platform integration must be verified before retiring another controller.
 
 ## Quick start
 
@@ -85,7 +89,7 @@ On an 11-inch iPad Pro running iPadOS 18.6.2, the persistent host completed a ne
 
 The task took 142.41 seconds across 8 MCP calls and 10 underlying operations. The final seek sequence took approximately 2470.1 ms from local input start to screenshot capture. This verifies the visible player timestamp and paused state, not an exact decoded frame timestamp.
 
-The repository also passes 8 contract tests and an unsigned WDA build from the pinned upstream source. Personal screenshots, device IDs, task logs and deployment credentials are excluded. See [validation details and remaining acceptance tests](docs/validation.md).
+The repository also passes 10 contract tests and an unsigned WDA build from the pinned upstream source. Personal screenshots, device IDs, task logs and deployment credentials are excluded. See [validation details and remaining acceptance tests](docs/validation.md).
 
 ## Current limitations
 
