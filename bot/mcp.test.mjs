@@ -35,14 +35,17 @@ test('hosted Bot binds screenshots to a task, preserves its budget on restart an
       close:()=>new Promise(resolve=>{process.once('exit',resolve);process.stdin.end();}),
     };
   }
-  let c=client();
+  let c=client();const concurrent=client();
+  await concurrent.call('tools/list');
   const tools=await c.call('tools/list');
   assert.equal(tools.tools.length,13);
   const result=await c.call('tools/call',{name:'ipad_task_begin',arguments:{description:'test current image'}});
   const {task_id}=JSON.parse(result.content[0].text);
+  const duplicate=await concurrent.call('tools/call',{name:'ipad_task_begin',arguments:{description:'must not overwrite another connection'}});
+  assert.equal(duplicate.isError,true);
   const wrong=await c.call('tools/call',{name:'ipad_screenshot',arguments:{task_id:'00000000-0000-0000-0000-000000000000'}});
   assert.equal(wrong.isError,true);
-  const shot=await c.call('tools/call',{name:'ipad_screenshot',arguments:{task_id}});
+  const shot=await concurrent.call('tools/call',{name:'ipad_screenshot',arguments:{task_id}});
   assert.equal(shot.isError,undefined);
   const evidence=JSON.parse(shot.content.at(-1).text);
   assert.equal(evidence.task_id,task_id);
@@ -58,5 +61,5 @@ test('hosted Bot binds screenshots to a task, preserves its budget on restart an
   assert.equal(JSON.parse(complete.content[0].text).status,'success');
   const next=await c.call('tools/call',{name:'ipad_task_begin',arguments:{description:'next user request'}});
   assert.notEqual(JSON.parse(next.content[0].text).task_id,task_id);
-  await c.close();
+  await c.close();await concurrent.close();
 });

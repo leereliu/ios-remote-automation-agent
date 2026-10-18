@@ -2,7 +2,7 @@
 // Runs on the hosted Bot computer. No model API, goal runner or local Mac access.
 import {createInterface} from 'node:readline';
 import {spawn} from 'node:child_process';
-import {readFile,writeFile,mkdir,rename} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,rename,open,unlink} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {request} from '../devbox/queue-client.mjs';
@@ -10,9 +10,10 @@ import {request} from '../devbox/queue-client.mjs';
 const directory=resolve(process.env.IPAD_BOT_DATA_DIR || new URL('../.local/bot/',import.meta.url).pathname);
 const configPath=resolve(process.env.IPAD_QUEUE_CONFIG || join(directory,'config-private.json'));
 const statePath=join(directory,'task-private.json');
+const lockPath=join(directory,'task-lock-private.json');
 const artifacts=resolve(process.env.IPAD_ARTIFACT_DIR || join(directory,'screenshots'));
 const send=value=>process.stdout.write(JSON.stringify(value)+'\n');
-let backend, backendId=0, current, serial=Promise.resolve();
+let backend, backendTaskId, backendId=0, current, serial=Promise.resolve();
 const pending=new Map();
 await mkdir(directory,{recursive:true,mode:0o700});
 await mkdir(artifacts,{recursive:true,mode:0o700});
@@ -44,6 +45,7 @@ async function startBackend() {
     env:{...process.env,IPAD_QUEUE_CONFIG:configPath},stdio:['pipe','pipe','pipe'],shell:false,
   });
   backend=child;
+  backendTaskId=current?.id;
   createInterface({input:child.stdout}).on('line',line=>{
     let message;try{message=JSON.parse(line);}catch{return;}
     const item=pending.get(message.id);if(!item)return;
@@ -60,7 +62,7 @@ function failBackend(child) {
   for(const item of pending.values()){clearTimeout(item.timer);item.reject(new Error('Device MCP stopped; do not replay an uncertain action.'));}
   pending.clear();
 }
-function stopBackend() {const process=backend;backend=undefined;process?.kill('SIGTERM');}
+function stopBackend() {const process=backend;backend=undefined;backendTaskId=undefined;process?.kill('SIGTERM');}
 const taskIdSchema={type:'string',pattern:'^[a-f0-9-]{36}$'};
 const additional=[
   {name:'ipad_queue_status',description:'Read the configured iPad heartbeat over HTTPS. Does not submit a device action.',inputSchema:{type:'object',properties:{},additionalProperties:false}},
@@ -109,15 +111,31 @@ async function callTool(name,args={}) {
   if(Date.now()>current.deadline)throw new Error('Task deadline reached. Report failure; do not begin another task automatically.');
   if(current.uncertain&&!['ipad_status','ipad_screenshot','ipad_read_screen','ipad_foreground'].includes(name))throw new Error('An earlier action is uncertain. Only read-only inspection is permitted pending human review.');
   if(current.calls>=20)throw new Error('Task reached its 20-tool budget. Report partial completion; do not begin another task automatically.');
+  if(backend && backendTaskId!==current.id)stopBackend();
   const known=await listTools();
   if(!known.tools.some(t=>t.name===name&&!additional.some(a=>a.name===name)))throw new Error('Unknown device tool');
   const {task_id,...argumentsValue}=args;
-  current.calls++;await save();
+  current.calls++;current.in_flight={tool:name,started_at:Date.now()};await save();
   let result;
   try {result=await rpc('tools/call',{name,arguments:argumentsValue});}
   catch(error){current.uncertain=true;await save();throw error;}
+  delete current.in_flight;await save();
   if(result.isError && /unknown|could not be confirmed|no result|timed out|unconfirmed|may have executed/i.test(JSON.stringify(result))) {current.uncertain=true;await save();}
   return imageArtifacts(result);
+}
+async function lockedCall(name,args) {
+  if(name==='ipad_queue_status')return callTool(name,args);
+  let lock;
+  try {lock=await open(lockPath,'wx',0o600);}catch(error){
+    if(error.code==='EEXIST')throw new Error('Another MCP process owns the device task lock. Wait for its current call. A stale lock requires manual review; do not bypass it.');
+    throw error;
+  }
+  try {
+    await lock.writeFile(JSON.stringify({pid:process.pid,created_at:Date.now()}));
+    try {current=JSON.parse(await readFile(statePath,'utf8'));}catch(error){if(error.code==='ENOENT')current=undefined;else throw error;}
+    if(current?.in_flight){current.uncertain=true;await save();}
+    return await callTool(name,args);
+  } finally {await lock.close();await unlink(lockPath);}
 }
 async function handle(message) {
   if(message.id===undefined)return;
@@ -127,7 +145,7 @@ async function handle(message) {
     else if(message.method==='ping')result={};
     else if(message.method==='tools/list')result=await listTools();
     else if(message.method==='tools/call') {
-      try{result=await callTool(message.params?.name,message.params?.arguments);}catch(error){result={isError:true,content:[{type:'text',text:error.message}]};}
+      try{result=await lockedCall(message.params?.name,message.params?.arguments);}catch(error){result={isError:true,content:[{type:'text',text:error.message}]};}
     } else {send({jsonrpc:'2.0',id:message.id,error:{code:-32601,message:'Method not found'}});return;}
     send({jsonrpc:'2.0',id:message.id,result});
   } catch {send({jsonrpc:'2.0',id:message.id,error:{code:-32603,message:'Bot adapter failed; do not replay a device action.'}});}
