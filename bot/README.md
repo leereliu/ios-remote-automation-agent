@@ -12,6 +12,16 @@ Requirements: Node 20.19 or newer, an existing queue and a live iPad executor. N
 
 All Bots on a Grok Bot account share a computer and credentials. A Bot name is not an access boundary. Keep the device credential narrowly scoped, private and revocable.
 
+For a second hosted assistant, the deployment config can optionally include a
+separate random `dot_token` of at least 32 characters. The deployer stores it as
+the `DOT_TOKEN` Worker secret, with the same fixed-device operation permissions
+as the Bot role. Put only the queue URL and this runtime token in that assistant's
+private config. It can be revoked independently of `BOT_TOKEN`; never copy the
+Cloudflare deployment credential, controller key or device key to an assistant.
+Both runtime credentials can read operation results in this single-device queue,
+so they should be given only to assistants authorized for that data. Keep task
+execution serial across controllers.
+
 Before retiring another controller, stop its goal loop and verify no in-flight device commands remain. Test one screenshot first, then a full task with the Mac offline and the old agent stopped. Platform support and end-to-end operation require live verification; a successful tool listing alone is insufficient.
 
 ## Validated hosted Bot workflow

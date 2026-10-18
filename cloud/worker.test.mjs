@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
 import worker, {validateOperation, validateWait, claimOperation, CLAIM_SQL} from './worker.mjs';
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
-const env = {CONTROLLER_TOKEN:'controller-'+ 'a'.repeat(40),AGENT_TOKEN:'agent-'+ 'b'.repeat(40),DEVICE_TOKEN:'device-'+ 'c'.repeat(40),BOT_TOKEN:'bot-'+ 'd'.repeat(40),DEVICE_ID:'test-ipad'};
+const env = {CONTROLLER_TOKEN:'controller-'+ 'a'.repeat(40),AGENT_TOKEN:'agent-'+ 'b'.repeat(40),DEVICE_TOKEN:'device-'+ 'c'.repeat(40),BOT_TOKEN:'bot-'+ 'd'.repeat(40),DOT_TOKEN:'dot-'+ 'e'.repeat(40),DEVICE_ID:'test-ipad'};
 const call = (path, role, body, scheme='https') => worker.fetch(new Request(`${scheme}://queue.example${path}`,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(role?{Authorization:`Bearer ${env[role]}`}:{})},body:body===undefined?undefined:JSON.stringify(body)}),env);
 test('only HTTPS is accepted; health discloses no device information',async()=>{
   assert.equal((await call('/health',null,undefined,'http')).status,400);
@@ -13,7 +13,7 @@ test('console assets contain no credentials and limit connections to the same or
   const page=await call('/');const source=await page.text();
   assert.equal(page.status,200);
   assert.match(page.headers.get('Content-Security-Policy'),/connect-src 'self'/);
-  for(const key of ['CONTROLLER_TOKEN','AGENT_TOKEN','DEVICE_TOKEN'])assert.ok(!source.includes(env[key]));
+  for(const key of ['CONTROLLER_TOKEN','AGENT_TOKEN','DEVICE_TOKEN','BOT_TOKEN','DOT_TOKEN'])assert.ok(!source.includes(env[key]));
   const script=await(await call('/console.mjs')).text();
   assert.ok(!script.includes('localStorage'));assert.ok(!script.includes('sessionStorage'));
 });
@@ -26,13 +26,15 @@ test('unauthenticated and wrong-role requests cannot access device or goal APIs'
   assert.equal((await call('/v1/agent/claim','DEVICE_TOKEN',{})).status,403);
 });
 test('bot credentials cannot submit, claim, finish or read Codex goals or impersonate the device',async()=>{
-  for (const [path,body] of [
-    ['/v1/goals',{prompt:'test'}], ['/v1/agent/claim',{}], ['/v1/agent/result',{}],
-    ['/v1/device/claim',{device_id:'test-ipad'}], ['/v1/device/result',{}],
-    ['/v1/goals/12345678-1234-1234-1234-123456789abc',undefined],
-  ]) assert.equal((await call(path,'BOT_TOKEN',body)).status,403,path);
-  assert.equal((await call('/v1/operations','BOT_TOKEN',{action:'shell',args:{command:'id'}})).status,400);
-  assert.equal((await call('/v1/operations','BOT_TOKEN',{action:'screenshot',args:{url:'https://elsewhere.invalid'}})).status,400);
+  for(const role of ['BOT_TOKEN','DOT_TOKEN']) {
+    for (const [path,body] of [
+      ['/v1/goals',{prompt:'test'}], ['/v1/agent/claim',{}], ['/v1/agent/result',{}],
+      ['/v1/device/claim',{device_id:'test-ipad'}], ['/v1/device/result',{}],
+      ['/v1/goals/12345678-1234-1234-1234-123456789abc',undefined],
+    ]) assert.equal((await call(path,role,body)).status,403,path);
+    assert.equal((await call('/v1/operations',role,{action:'shell',args:{command:'id'}})).status,400);
+    assert.equal((await call('/v1/operations',role,{action:'screenshot',args:{url:'https://elsewhere.invalid'}})).status,400);
+  }
 });
 test('operation schema rejects forwarding, arbitrary URLs, unknown arguments and bad coordinates',()=>{
   for(const value of [
@@ -116,5 +118,6 @@ test('device claim validates wait before touching D1 and advertises heartbeat fr
     env.DB={prepare(){return {bind(){return this;},async first(){return {last_seen:123,metadata:'{}'};}};}};
     const response=await call('/v1/device','BOT_TOKEN');
     assert.deepEqual(await response.json(),{last_seen:123,metadata:'{}',heartbeat_interval_ms:60000,stale_after_ms:120000});
+    assert.equal((await call('/v1/device','DOT_TOKEN')).status,200);
   } finally {env.DB=old;}
 });

@@ -44,6 +44,8 @@ def main():
         'device_id': args.device_id,
     }
     private.setdefault('bot_token', secrets.token_urlsafe(32))
+    if private.get('dot_token') and (not isinstance(private['dot_token'], str) or len(private['dot_token']) < 32):
+        raise RuntimeError('dot_token must contain at least 32 characters')
     private_write(PRIVATE, private)
     state = json.loads(STATE.read_text()) if STATE.exists() else {
         'account': ACCOUNT, 'script': args.script_name, 'database_name': args.script_name,
@@ -91,6 +93,9 @@ def main():
         {'name': 'DEVICE_ID', 'type': 'plain_text', 'text': private['device_id']}]
     for name, key in [('CONTROLLER_TOKEN', 'controller_token'), ('AGENT_TOKEN', 'agent_token'), ('DEVICE_TOKEN', 'device_token'), ('BOT_TOKEN', 'bot_token')]:
         bindings.append({'name': name, 'type': 'secret_text', 'text': private[key]})
+    # An optional second hosted assistant can be revoked independently.
+    if private.get('dot_token'):
+        bindings.append({'name': 'DOT_TOKEN', 'type': 'secret_text', 'text': private['dot_token']})
     metadata = {'main_module': 'worker.mjs', 'compatibility_date': '2026-10-18', 'bindings': bindings,
         'observability': {'enabled': False}}
     boundary = '----ipadqueue' + uuid.uuid4().hex

@@ -36,7 +36,7 @@ async function roleOf(request, env) {
   const h = request.headers.get('Authorization') || '';
   if (!h.startsWith('Bearer ') || h.length > 256) fail(401, 'Authentication required');
   const value = h.slice(7);
-  for (const [role, name] of [['controller', 'CONTROLLER_TOKEN'], ['agent', 'AGENT_TOKEN'], ['device', 'DEVICE_TOKEN'], ['bot', 'BOT_TOKEN']]) {
+  for (const [role, name] of [['controller', 'CONTROLLER_TOKEN'], ['agent', 'AGENT_TOKEN'], ['device', 'DEVICE_TOKEN'], ['bot', 'BOT_TOKEN'], ['bot', 'DOT_TOKEN']]) {
     if (await equalSecret(value, env[name])) return role;
   }
   fail(401, 'Authentication required');
