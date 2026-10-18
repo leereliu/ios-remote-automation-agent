@@ -2,6 +2,23 @@
 import {html,css,js} from './console-ui.mjs';
 const ACTIONS = new Set(['status', 'screenshot', 'source', 'home', 'launch', 'tap', 'swipe', 'type', 'foreground', 'sequence']);
 const encoder = new TextEncoder();
+export const CLEANUP_SQL = 'DELETE FROM jobs WHERE id IN (SELECT id FROM jobs WHERE expires_at < ? ORDER BY expires_at,id LIMIT 100)';
+export const CLAIM_SQL = `UPDATE jobs SET status='running',claimed_at=? WHERE id=(SELECT id FROM jobs INDEXED BY jobs_pending_expiry WHERE kind=? AND device_id=? AND status='pending' AND expires_at>? ORDER BY created_at,id LIMIT 1) AND status='pending' RETURNING *`;
+export const HEARTBEAT_SQL = 'INSERT INTO device_state(id,last_seen,metadata) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET last_seen=excluded.last_seen,metadata=excluded.metadata WHERE device_state.last_seen<=excluded.last_seen-60000';
+export const MAX_WAIT_MS = 20000;
+export const QUEUE_CHECK_MS = 5000;
+export function validateWait(value = 0) {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_WAIT_MS) fail(400, 'Invalid claim wait');
+  return value;
+}
+function delay(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const abort = () => { clearTimeout(timer); reject(Object.assign(new Error('Claim cancelled'), {status:499})); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, ms);
+    signal?.addEventListener('abort', abort, {once:true});
+    if (signal?.aborted) abort();
+  });
+}
 const fail = (status, message) => { throw Object.assign(new Error(message), {status}); };
 const json = (body, status = 200) => Response.json(body, {status, headers: {
   'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
@@ -96,14 +113,29 @@ async function insertJob(env, kind, payload, key) {
   // No automatic redelivery: a duplicate tap or text entry could have side effects.
   await env.DB.prepare('INSERT INTO jobs(id,kind,device_id,status,payload,created_at,expires_at) VALUES(?,?,?,?,?,?,?)')
     .bind(id, kind, env.DEVICE_ID, 'pending', JSON.stringify(payload), now, now + (kind === 'goal' ? 900000 : 180000)).run();
-  await env.DB.prepare('DELETE FROM jobs WHERE id IN (SELECT id FROM jobs WHERE expires_at < ? LIMIT 100)').bind(now - 86400000).run();
+  await env.DB.prepare(CLEANUP_SQL).bind(now - 86400000).run();
   return {id, status: 'pending', created_at: now};
 }
 async function claimJob(env, kind) {
   const now = Date.now();
-  const row = await env.DB.prepare(`UPDATE jobs SET status='running',claimed_at=? WHERE id=(SELECT id FROM jobs WHERE kind=? AND device_id=? AND status='pending' AND expires_at>? ORDER BY created_at,id LIMIT 1) AND status='pending' RETURNING *`)
+  const row = await env.DB.prepare(CLAIM_SQL)
     .bind(now, kind, env.DEVICE_ID, now).first();
   return parseJob(row);
+}
+// Keep the outbound HTTPS request open while idle. A larger hold window saves
+// Worker invocations without increasing the five-second queue check interval.
+// No in-memory wakeup is relied on: submitters may reach a different isolate.
+export async function claimOperation(env, waitMs, signal, timing = {now:Date.now, sleep:delay}) {
+  const deadline = timing.now() + validateWait(waitMs);
+  while (true) {
+    if (signal?.aborted) fail(499, 'Claim cancelled');
+    const task = await claimJob(env, 'operation');
+    if (task || timing.now() >= deadline) return task;
+    await timing.sleep(Math.min(QUEUE_CHECK_MS, deadline - timing.now()), signal);
+    // The next client request checks immediately. Avoid a duplicate D1 check
+    // at the end of one window and the start of the next.
+    if (timing.now() >= deadline) return null;
+  }
 }
 async function finishJob(env, kind, body) {
   if (typeof body.id !== 'string' || !/^[a-f0-9-]{36}$/.test(body.id)) fail(400, 'Invalid task identifier');
@@ -139,10 +171,11 @@ export default {
         requireRole(role, ['device']);
         const body = await bodyOf(request, 4000);
         if (body.device_id !== env.DEVICE_ID) fail(403, 'Wrong device');
-        const metadata = JSON.stringify({version: String(body.version || '').slice(0, 40), uptime: Number(body.uptime) || 0});
-        await env.DB.prepare('INSERT INTO device_state(id,last_seen,metadata) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET last_seen=excluded.last_seen,metadata=excluded.metadata')
+        const waitMs = validateWait(body.wait_ms);
+        const metadata = JSON.stringify({version: String(body.version || '').slice(0, 40), uptime: Number(body.uptime) || 0, poll_wait_ms:waitMs, heartbeat_interval_ms:60000});
+        await env.DB.prepare(HEARTBEAT_SQL)
           .bind(env.DEVICE_ID, Date.now(), metadata).run();
-        return json({task: await claimJob(env, 'operation')});
+        return json({task: await claimOperation(env, waitMs, request.signal), wait_ms:waitMs});
       }
       if (path === '/v1/device/result' && request.method === 'POST') {
         requireRole(role, ['device']); return json(await finishJob(env, 'operation', await bodyOf(request)));
@@ -155,7 +188,8 @@ export default {
       }
       if (path === '/v1/device' && request.method === 'GET') {
         requireRole(role, ['controller', 'agent', 'bot']);
-        return json(await env.DB.prepare('SELECT * FROM device_state WHERE id=?').bind(env.DEVICE_ID).first());
+        const state = await env.DB.prepare('SELECT * FROM device_state WHERE id=?').bind(env.DEVICE_ID).first();
+        return json(state ? {...state, heartbeat_interval_ms:60000, stale_after_ms:120000} : null);
       }
       const kind = path.startsWith('/v1/operations') ? 'operation' : path.startsWith('/v1/goals') ? 'goal' : null;
       const prefix = kind === 'operation' ? '/v1/operations' : '/v1/goals';

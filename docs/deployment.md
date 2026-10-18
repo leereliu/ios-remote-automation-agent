@@ -23,7 +23,7 @@ python3 scripts/deploy-cloud.py --script-name ipad-https-agent --device-id home-
 unset CLOUDFLARE_API_TOKEN
 ```
 
-账户尚无 workers.dev 子域时，首次增加 `--subdomain YOUR_CHOSEN_SUBDOMAIN`。脚本创建或复用同名 D1、初始化表结构、上传 Worker 与静态控制台、写入三类独立密钥，并启用 workers.dev 地址。它会修改指定 Worker；部署前可保留已验证版本与私有配置。重复执行沿用 `.local/` 的设备钥匙与部署身份，目标不一致时拒绝执行。
+账户尚无 workers.dev 子域时，首次增加 `--subdomain YOUR_CHOSEN_SUBDOMAIN`。脚本创建或复用同名 D1、初始化表结构、上传 Worker 与静态控制台、写入四类独立密钥，并启用 workers.dev 地址。它会修改指定 Worker；部署前可保留已验证版本与私有配置。重复执行沿用 `.local/` 的设备钥匙与部署身份，目标不一致时拒绝执行。
 
 返回 URL 后，无凭据的 `/health` 可检查协议存活；设备与任务接口需 Bearer 认证。部署短期令牌可以在部署完成后撤销，运行钥匙的撤销需要单独处理。
 
@@ -96,6 +96,8 @@ python3 scripts/launch-device.py \
 
 首次安装后可能需要在 iPad 的“VPN 与设备管理”中信任开发者证书。设备需具备有效开发者测试环境；DDI 未挂载、设备锁定或签名未信任时无法启动。手动点击 Runner 图标可能闪退，不能作为恢复方法。
 
+更新后也可能出现 `Profile Needs Network Validation`。本地 `codesign --verify` 成功仍需设备端完成 Apple 的联网验证；可在“设置 → 通用 → VPN 与设备管理 → 开发者 App”查看并完成“验证 App”。2026-10-18 的更新已观察到此状态，完成设备验证后通过原启动脚本恢复，无需新建凭据或扩大权限。
+
 预安装处理依据 [Appium 官方说明](https://appium.github.io/appium-xcuitest-driver/latest/guides/run-preinstalled-wda/)。免费 [Apple Personal Team](https://developer.apple.com/help/account/basics/about-your-developer-account) 描述文件通常自签发 7 天到期，需重新构建安装。提高签名有效期无法单独解决进程退出或重启恢复。
 
 ## 提交目标与检查截图
@@ -119,3 +121,9 @@ node scripts/control.mjs wait operations OPERATION_UUID
 `systemctl --user stop ipad-https-agent.service` 会停止新目标领取；已经进入设备端的触控仍可能执行，无法将进程终止当作事务取消。遇到超时或结果未知时，优先查询原 UUID 与当前截图。
 
 Runner 退出、重启或签名到期后，当前需要已配对 Mac 恢复。保留此前验证通过的配置与 Runner，可在旧版本恢复后重新检查设备领取、截图、原任务状态，再执行无副作用目标。避免将恢复过程变成旧触控的自动重放。
+
+## 更新清理索引与长轮询
+
+沿用原 `.local/` 身份重新运行 `scripts/deploy-cloud.py`，会通过 `CREATE INDEX IF NOT EXISTS jobs_expires ON jobs(expires_at,id)` 为现有数据库添加索引，保留历史记录与运行钥匙。该索引创建会产生一次性读写用量。Worker 对旧领取器保持兼容；设备更新到 `ipad-https-3` 后启用自适应长轮询。
+
+设备更新需要重新构建、准备签名副本并安装启动。可保留旧构建目录与已验证 Runner 用于恢复；已有 `build/WebDriverAgent/` 时先将其移动到备份位置。新版本仅重试结果上传，遇到领取后中断的触控仍需核查原任务。Bot 的 `SKILL.md` 同步后会依据状态接口的 `stale_after_ms` 判断心跳。

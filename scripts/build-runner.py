@@ -37,6 +37,7 @@ def main():
     subprocess.run(['git', '-C', str(target), 'init', '-q'], check=True)
     subprocess.run(['git', '-C', str(target), 'apply', str(ROOT / 'patches/wda-https-runner.patch')], check=True)
     shutil.copy2(ROOT / 'device/FBHTTPSQueueClient.m', target / 'WebDriverAgentRunner')
+    shutil.copy2(ROOT / 'device/FBHTTPSPolling.h', target / 'WebDriverAgentRunner')
     project = target / 'WebDriverAgent.xcodeproj/project.pbxproj'
     project.write_text(project.read_text().replace('com.facebook.WebDriverAgentRunner', args.bundle_id))
     print('Prepared pinned WDA source with the native HTTPS client.', flush=True)

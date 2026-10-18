@@ -8,7 +8,7 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "test": "node --test cloud/worker.test.mjs devbox/queue-client.test.mjs bot/mcp.test.mjs"
+    "test": "node --test cloud/*.test.mjs device/*.test.mjs devbox/queue-client.test.mjs bot/mcp.test.mjs"
   },
   "license": "MIT"
 }

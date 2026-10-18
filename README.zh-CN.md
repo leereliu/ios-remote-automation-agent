@@ -22,7 +22,7 @@ flowchart LR
 箭头表示请求发起方向；任务随云端 HTTP 响应交付。D1 上实现 `goal` 和 `operation` 两层队列，没有使用 Cloudflare Queues 产品。Mac 用于初次构建、签名、安装、启动及异常恢复。
 
 - 后台 Agent 每约 10 秒领取自然语言目标，启动受限 Codex CLI，通过 stdio MCP 使用 10 个 iPad 工具。
-- iPad 上的原生领取器编译进 WDA Runner，每约 5 秒领取操作，执行后上传结果。
+- iPad 上的原生领取器编译进 WDA Runner，空闲时逐步将 HTTPS 请求保持 5、10、20 秒，云端每 5 秒检查任务。有任务即返回，完成后恢复快速领取；心跳最多每分钟写入一次。[轮询与用量说明](docs/polling.md)。
 - `ipad_sequence` 在设备本地连续执行最多 12 个 tap / swipe / wait，末尾截图并一次上传。步骤之间没有模型判断或云端往返。
 - 独立 controller / agent / device 凭据、固定单设备、操作参数白名单；结果不确定时禁止自动重放触控。
 

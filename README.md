@@ -31,7 +31,7 @@ flowchart LR
 
 Arrows show which component initiates a request. Queued work is delivered in the HTTP response. The queue is implemented in D1 with two job types: a natural-language `goal` for the agent, and a device `operation` for the runner. It does not use the Cloudflare Queues product.
 
-The background agent polls roughly every 10 seconds, starts a restricted Codex CLI process, and exposes 10 device tools through stdio MCP. The native HTTPS client is compiled into the WDA runner and polls roughly every 5 seconds.
+The background agent polls roughly every 10 seconds, starts a restricted Codex CLI process, and exposes 10 device tools through stdio MCP. The native HTTPS client is compiled into the WDA runner. Empty claims progressively hold the outbound HTTPS request for 5, 10 and 20 seconds, while the Worker checks D1 every 5 seconds. Queued work returns immediately; completed work resets the hold window and the next claim starts after 0.5 seconds. Heartbeats are persisted at most once per minute. See [polling and usage](docs/polling.md).
 
 ### Device-local action sequences
 
@@ -54,7 +54,7 @@ npm test
 python3 -m compileall -q scripts
 ```
 
-Local tests require Node.js 20.19 or later. The deployment tested with the prototype used Node.js 22.16.0, Codex CLI 0.163.0, Xcode 26.3 and iPadOS 18.6.2. Python scripts use only the standard library. The background service targets Linux with user-level systemd.
+Local tests require Node.js 20.19 or later, Python 3 with SQLite and a C compiler. The deployment tested with the prototype used Node.js 22.16.0, Codex CLI 0.163.0, Xcode 26.3 and iPadOS 18.6.2. Python scripts use only the standard library. The background service targets Linux with user-level systemd.
 
 These commands check the source; a working deployment additionally needs your own Cloudflare account, model authorization, Apple development signing and a paired device.
 
@@ -89,7 +89,7 @@ On an 11-inch iPad Pro running iPadOS 18.6.2, the persistent host completed a ne
 
 The task took 142.41 seconds across 8 MCP calls and 10 underlying operations. The final seek sequence took approximately 2470.1 ms from local input start to screenshot capture. This verifies the visible player timestamp and paused state, not an exact decoded frame timestamp.
 
-The repository also passes 10 contract tests and an unsigned WDA build from the pinned upstream source. Personal screenshots, device IDs, task logs and deployment credentials are excluded. See [validation details and remaining acceptance tests](docs/validation.md).
+The repository also passes automated queue, database, native polling policy and Bot contract tests and an unsigned WDA build from the pinned upstream source. Personal screenshots, device IDs, task logs and deployment credentials are excluded. See [validation details and remaining acceptance tests](docs/validation.md).
 
 ## Current limitations
 

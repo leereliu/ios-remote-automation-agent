@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #include <stdlib.h>
 #include <math.h>
+#include "FBHTTPSPolling.h"
 
 // Compiled into the runner translation unit. External requests only use HTTPS;
 // the existing WDA API is reached over the device's own loopback interface.
@@ -15,6 +16,8 @@
 @property(nonatomic) BOOL stopped;
 @property(nonatomic) NSTimeInterval started;
 @property(nonatomic,strong) NSMutableArray *events;
+@property(nonatomic) unsigned emptyResponses;
+@property(nonatomic) unsigned networkFailures;
 - (void)start;
 - (void)stop;
 @end
@@ -57,8 +60,9 @@
   [self save:self.config name:@"config.json"];
   self.pending = [self load:@"pending.json"];
   NSURLSessionConfiguration *cloudConfig = NSURLSessionConfiguration.ephemeralSessionConfiguration;
-  cloudConfig.timeoutIntervalForRequest = 20;
-  cloudConfig.timeoutIntervalForResource = 25;
+  // The server holds an idle claim for up to 20 seconds; allow transport and D1 overhead.
+  cloudConfig.timeoutIntervalForRequest = 35;
+  cloudConfig.timeoutIntervalForResource = 40;
   cloudConfig.HTTPCookieAcceptPolicy = NSHTTPCookieAcceptPolicyNever;
   cloudConfig.URLCache = nil;
   cloudConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
@@ -103,10 +107,20 @@
 - (void)poll {
   if (self.stopped) return;
   if (self.pending) { [self uploadPending]; return; }
-  [self cloudPost:@"/v1/device/claim" body:@{@"device_id":self.config[@"device_id"] ?: @"",@"version":@"ipad-https-2",@"uptime":@(NSDate.timeIntervalSinceReferenceDate-self.started)} completion:^(NSDictionary *body, NSError *error) {
-    if (error) { [self schedule:15]; return; }
+  unsigned wait = FBHTTPSPollWaitMilliseconds(self.emptyResponses);
+  [self record:@"claim_wait" details:@{@"wait_ms":@(wait)}];
+  [self cloudPost:@"/v1/device/claim" body:@{@"device_id":self.config[@"device_id"] ?: @"",@"version":@"ipad-https-3",@"wait_ms":@(wait),@"uptime":@(NSDate.timeIntervalSinceReferenceDate-self.started)} completion:^(NSDictionary *body, NSError *error) {
+    if (error) { [self retryNetwork]; return; }
+    self.networkFailures = 0;
     NSDictionary *task = body[@"task"];
-    if (![task isKindOfClass:NSDictionary.class]) { [self schedule:5]; return; }
+    if (![task isKindOfClass:NSDictionary.class]) {
+      if (self.emptyResponses < 2) self.emptyResponses++;
+      // An older Worker ignores wait_ms. Retain the old five-second sleep
+      // during staged upgrades or rollback instead of issuing a tight loop.
+      BOOL supported = [body[@"wait_ms"] isKindOfClass:NSNumber.class] && [body[@"wait_ms"] unsignedIntValue] == wait;
+      [self schedule:supported ? 0.25 : 5]; return;
+    }
+    self.emptyResponses = 0;
     NSString *identifier = task[@"id"];
     NSDictionary *payload = task[@"payload"];
     if (![identifier isKindOfClass:NSString.class] || ![payload isKindOfClass:NSDictionary.class]) { [self schedule:15]; return; }
@@ -124,6 +138,10 @@
     }];
   }];
 }
+- (void)retryNetwork {
+  if (self.networkFailures < 3) self.networkFailures++;
+  [self schedule:FBHTTPSRetrySeconds(self.networkFailures)];
+}
 - (void)finish:(NSString *)identifier value:(NSDictionary *)value error:(BOOL)failed {
   NSData *encoded = [NSJSONSerialization dataWithJSONObject:value options:0 error:nil];
   if (!encoded || encoded.length > 780000) {
@@ -139,6 +157,8 @@
   if (!pending) { [self schedule:5]; return; }
   [self cloudPost:@"/v1/device/result" body:pending completion:^(NSDictionary *body, NSError *error) {
     if (!error && [body[@"recorded"] boolValue]) {
+      self.networkFailures = 0;
+      self.emptyResponses = 0;
       self.pending = nil;
       [NSFileManager.defaultManager removeItemAtURL:[self file:@"pending.json"] error:nil];
       [self schedule:0.5];
@@ -151,7 +171,7 @@
         return;
       }
       // Retry upload only, never the UI operation.
-      [self schedule:15];
+      [self retryNetwork];
     }
   }];
 }
