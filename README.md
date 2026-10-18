@@ -12,7 +12,7 @@ Remote control and automate your iPad or iPhone from anywhere over HTTPS. Descri
 - Launches apps, reads accessibility state, taps, swipes, types and captures screenshots.
 - Batches timing-sensitive gestures on the device, so auto-hiding controls do not have to wait for another model or network round trip.
 - Uses outbound HTTPS requests from both the persistent host and the iOS device. No overlay VPN, router port forwarding or new inbound host listener is required.
-- Separates controller, agent and device credentials, with a fixed-device operation allowlist.
+- Separates controller, agent, device and optional Bot credentials, with a fixed-device operation allowlist.
 
 A paired Mac is required for initial provisioning, building, signing, installation and recovery. Normal task execution uses the persistent host, the cloud queue and the iOS runner. Unplugged, cross-network execution has been tested; physically powering off the Mac has not yet been tested.
 
@@ -43,7 +43,7 @@ Existing service names and MCP tool names retain their `ipad-https-agent` and `i
 
 ## Hosted Bot alternative
 
-The optional [hosted Bot adapter](bot/README.md) lets an assistant such as Grok Bot use the existing operation queue directly from its cloud computer. It provides task budgets and saved screenshot attachments without running Codex or the Devbox goal loop. It uses the assistant's own allowance and never enables additional paid usage. Register `bot/mcp.mjs` as a Command / stdio MCP connector and install the workflow in `bot/SKILL.md`; live platform integration must be verified before retiring another controller.
+The optional [hosted Bot adapter](bot/README.md) lets an assistant such as Grok Bot use the existing operation queue directly from its cloud computer. It provides task budgets and saved screenshot attachments without running Codex or the Devbox goal loop. It uses the assistant's own allowance and never enables additional paid usage. Register `bot/mcp.mjs` as a Command / stdio MCP connector and install the workflow in `bot/SKILL.md`; see the documented live acceptance result and verify your own platform before retiring another controller.
 
 ## Quick start
 

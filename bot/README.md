@@ -13,3 +13,9 @@ Requirements: Node 20.19 or newer, an existing queue and a live iPad executor. N
 All Bots on a Grok Bot account share a computer and credentials. A Bot name is not an access boundary. Keep the device credential narrowly scoped, private and revocable.
 
 Before retiring another controller, stop its goal loop and verify no in-flight device commands remain. Test one screenshot first, then a full task with the Mac offline and the old agent stopped. Platform support and end-to-end operation require live verification; a successful tool listing alone is insufficient.
+
+## Validated hosted Bot workflow
+
+On October 18, 2026, a Grok Bot on its own hosted computer controlled the existing physical iPad and returned an actual JPEG attachment in its conversation. The request was initiated through the iPhone app using iPhone Mirroring. The newest video was shorter than the original requested timestamp, so the owner changed the target to its displayed **02:00 / 02:15**. The Bot completed that target in six device tool calls and eight underlying operations, with no new Codex goal submitted. The player was visibly paused at 02:00, and the video title and publication date were checked in the same image. This validates the displayed seconds, not a decoded frame timestamp.
+
+The old Devbox agent was stopped and its startup links removed. The Mac stayed on as a chat and observation client; physically powering it off was not part of this acceptance run. Initial signing and runner recovery still require a paired Mac. Private credentials, screenshots, operation IDs and personal runtime state are excluded from the repository.
