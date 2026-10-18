@@ -1,0 +1,7 @@
+{
+  "url": "https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev",
+  "device_id": "home-ipad",
+  "controller_token": "REPLACE_WITH_A_RANDOM_CONTROLLER_TOKEN",
+  "agent_token": "REPLACE_WITH_A_RANDOM_AGENT_TOKEN",
+  "device_token": "REPLACE_WITH_A_RANDOM_DEVICE_TOKEN"
+}

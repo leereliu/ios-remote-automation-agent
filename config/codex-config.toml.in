@@ -1,0 +1,49 @@
+model_provider = "openai_https"
+approval_policy = "never"
+sandbox_mode = "read-only"
+web_search = "disabled"
+
+[model_providers.openai_https]
+name = "OpenAI"
+wire_api = "responses"
+requires_openai_auth = true
+supports_websockets = false
+
+[features]
+shell_tool = false
+multi_agent = false
+apps = false
+browser_use = false
+computer_use = false
+plugins = false
+
+[mcp_servers.ipad_https]
+command = "@NODE_BIN@"
+args = ["@AGENT_DIR@/mcp.mjs"]
+required = true
+tool_timeout_sec = 170
+enabled_tools = ["ipad_status", "ipad_screenshot", "ipad_read_screen", "ipad_home", "ipad_foreground", "ipad_launch_app", "ipad_tap", "ipad_swipe", "ipad_type", "ipad_sequence"]
+
+[mcp_servers.ipad_https.tools.ipad_status]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_screenshot]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_read_screen]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_home]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_foreground]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_launch_app]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_tap]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_swipe]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_type]
+approval_mode = "approve"
+[mcp_servers.ipad_https.tools.ipad_sequence]
+approval_mode = "approve"
+
+[projects."@AGENT_DIR@"]
+trust_level = "trusted"

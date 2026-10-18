@@ -1,0 +1,17 @@
+[Unit]
+Description=Personal iPad HTTPS task agent
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@AGENT_DIR@
+ExecStart=@NODE_BIN@ @AGENT_DIR@/agent.mjs
+Restart=on-failure
+RestartSec=20
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

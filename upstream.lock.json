@@ -1,0 +1,11 @@
+{
+  "webdriveragent": {
+    "repository": "https://github.com/appium/WebDriverAgent.git",
+    "commit": "3d6a4e03cdd673e540289c610f7e189f8ffea434",
+    "license": "BSD-3-Clause"
+  },
+  "codex_cli": {
+    "package": "@openai/codex",
+    "version": "0.163.0"
+  }
+}
