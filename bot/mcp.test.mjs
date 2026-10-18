@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline';
-import {mkdtemp,writeFile,readFile,stat,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,readFile,stat,rm,readdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -59,7 +59,32 @@ test('hosted Bot binds screenshots to a task, preserves its budget on restart an
   assert.equal(noEvidence.isError,true);
   const complete=await c.call('tools/call',{name:'ipad_task_end',arguments:{task_id,outcome:'success',summary:'verified fixture',evidence_operation_id:evidence.operation_id}});
   assert.equal(JSON.parse(complete.content[0].text).status,'success');
-  const next=await c.call('tools/call',{name:'ipad_task_begin',arguments:{description:'next user request'}});
-  assert.notEqual(JSON.parse(next.content[0].text).task_id,task_id);
+  const invalid=await c.call('tools/call',{name:'ipad_task_begin',arguments:{description:'invalid limits',tool_budget:101}});
+  assert.equal(invalid.isError,true);
+  const next=await c.call('tools/call',{name:'ipad_task_begin',arguments:{description:'aggregate-only request',tool_budget:1,timeout_minutes:30,archive_images:false}});
+  const aggregate=JSON.parse(next.content[0].text);
+  assert.notEqual(aggregate.task_id,task_id);
+  assert.equal(aggregate.tool_budget,1);
+  const countShot=await c.call('tools/call',{name:'ipad_screenshot',arguments:{task_id:aggregate.task_id}});
+  assert.equal(countShot.isError,undefined);
+  const observation=JSON.parse(countShot.content.at(-1).text);
+  assert.equal(observation.archive_images,false);
+  assert.equal(observation.screenshot_path,undefined);
+  assert.equal((await readdir(join(directory,'screenshots'))).length,1);
+  await c.close();c=client();
+  const exhausted=await c.call('tools/call',{name:'ipad_screenshot',arguments:{task_id:aggregate.task_id}});
+  assert.equal(exhausted.isError,true);
+  assert.match(exhausted.content[0].text,/1-tool budget/);
+  const finished=await c.call('tools/call',{name:'ipad_task_end',arguments:{task_id:aggregate.task_id,outcome:'success',summary:'verified aggregate',evidence_operation_id:observation.operation_id}});
+  assert.equal(JSON.parse(finished.content[0].text).status,'success');
+  const bulk=await c.call('tools/call',{name:'ipad_task_begin',arguments:{description:'explicit bulk request',tool_budget:25}});
+  const bulkId=JSON.parse(bulk.content[0].text).task_id;
+  for(let i=0;i<21;i++){
+    const status=await c.call('tools/call',{name:'ipad_status',arguments:{task_id:bulkId}});
+    assert.equal(status.isError,undefined,'configured backend budget must permit call '+(i+1));
+  }
+  const persisted=JSON.parse(await readFile(join(directory,'task-private.json'),'utf8'));
+  assert.equal(persisted.calls,21);
+  assert.equal(persisted.tool_budget,25);
   await c.close();await concurrent.close();
 });

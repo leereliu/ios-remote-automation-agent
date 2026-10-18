@@ -20,6 +20,9 @@ const tools = [
 ];
 let sequence = Promise.resolve();
 let operationCount = 0;
+// Hosted Bot tasks may select a bounded budget; the legacy goal runner keeps 20.
+const operationBudget = Number(process.env.IPAD_TOOL_BUDGET ?? 20);
+if (!Number.isInteger(operationBudget) || operationBudget < 1 || operationBudget > 100) throw new Error('Invalid IPAD_TOOL_BUDGET');
 const send = object => process.stdout.write(JSON.stringify(object) + '\n');
 async function handle(message) {
   if (message.id === undefined) return;
@@ -31,7 +34,7 @@ async function handle(message) {
     const tool = tools.find(t=>t[0]===message.params?.name);
     if (!tool) { send({jsonrpc:'2.0',id:message.id,error:{code:-32602,message:'Unknown tool'}}); return; }
     try {
-      if (++operationCount > 20) throw new Error('This goal reached the 20-operation limit. Report the current state and stop.');
+      if (++operationCount > operationBudget) throw new Error('This task reached its '+operationBudget+'-operation limit. Report the current state and stop.');
       const args={...(message.params?.arguments||{})};
       if(Object.keys(args).some(key=>!Object.hasOwn(tool[3],key)))throw new Error('Unknown tool argument');
       let reveal;
