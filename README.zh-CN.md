@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-通过 HTTPS，从任意地点用自然语言远程控制与自动化个人 iPad / iPhone。当前真机验收覆盖 iPad，iPhone 尚待验证。常驻主机运行 Codex CLI，iPad 主动通过 HTTPS 领取操作；无需在任务执行链路中运行 Mac，也无需安装组网软件或开放主机入站端口。
+通过 HTTPS，从任意地点用自然语言远程控制与自动化个人 iPad / iPhone。当前真机验收覆盖 iPad，iPhone 尚待验证。任务可由本地 Codex、云端助手或可选的常驻主机执行，iPad 主动通过 HTTPS 领取操作；无需安装组网软件或开放主机入站端口。
 
 **状态：个人原型，已完成拔线与跨网络任务验收。执行器退出、设备重启、免费签名到期后的自动恢复尚未解决，不能承诺长期无人值守。**
 
@@ -12,6 +12,8 @@
 flowchart LR
     U[浏览器控制台 / CLI] -->|HTTPS 提交目标与查询结果| W[Cloudflare Worker]
     A[常驻主机 Agent + Codex CLI] -->|主动 HTTPS 领取目标 / 提交操作| W
+    L[本地 Codex + MCP] -->|主动 HTTPS 提交操作 / 读取结果| W
+    B[云端助手 + MCP] -->|主动 HTTPS 提交操作 / 读取结果| W
     I[iPad 原生 HTTPS 领取器] -->|主动 HTTPS 领取操作 / 上传结果| W
     W --- D[(D1 自建任务队列)]
     A -->|HTTPS Responses| M[OpenAI 模型]
@@ -39,6 +41,8 @@ flowchart LR
 可选的 [Bot 适配器](bot/README.md) 允许 Grok Bot 等云端助手直接调用现有 operation 队列，使用其自身额度，无需运行 Codex 或开发机目标循环。适配器提供单任务预算、截图文件回传与独立 bot 角色。2026-10-18 已通过 Grok Bot 云端执行、iPhone 发起任务、02:00 图片附件回传验收。该次 Mac 保持开机，原开发机 Agent 已停用；物理关机未在该轮验收。其他部署仍需自行验证。适配器不会启用额外付费。
 
 ## 获取与本地校验
+
+本地 Codex 可通过 `home-ios` stdio MCP 接入同一设备，设置 `IPAD_CLIENT_KIND=codex`，使用独立的 `CODEX_TOKEN` 运行凭据。本地任务由当前 Codex 对话执行，云端任务由助手执行，两边需要错开操作。[本地接入步骤与验证](local/README.md)。
 
 ```bash
 git clone --recurse-submodules https://github.com/leereliu/ios-remote-automation-agent.git

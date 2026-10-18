@@ -14,7 +14,7 @@ Remote control and automate your iPad or iPhone from anywhere over HTTPS. Descri
 - Uses outbound HTTPS requests from both the persistent host and the iOS device. No overlay VPN, router port forwarding or new inbound host listener is required.
 - Separates controller, agent, device and optional Bot credentials, with a fixed-device operation allowlist.
 
-A paired Mac is required for initial provisioning, building, signing, installation and recovery. Normal task execution uses the persistent host, the cloud queue and the iOS runner. Unplugged, cross-network execution has been tested; physically powering off the Mac has not yet been tested.
+A paired Mac is required for initial provisioning, building, signing, installation and recovery. Normal task execution uses the selected planner, the cloud queue and the iOS runner. The planner can be local Codex, a hosted assistant or the optional persistent host. Unplugged, cross-network execution has been tested; physically powering off the Mac has not yet been tested.
 
 ## How it works
 
@@ -22,6 +22,8 @@ A paired Mac is required for initial provisioning, building, signing, installati
 flowchart LR
     U[Browser console / CLI] -->|HTTPS submit goals and read results| W[Cloudflare Worker]
     A[Persistent host: Agent + Codex CLI] -->|Outbound HTTPS: claim goals and submit operations| W
+    L[Local Codex + MCP] -->|Outbound HTTPS: submit operations and read results| W
+    B[Hosted assistant + MCP] -->|Outbound HTTPS: submit operations and read results| W
     I[On-device HTTPS client] -->|Outbound HTTPS: claim operations and upload results| W
     W --- D[(D1 application queue)]
     A -->|HTTPS Responses| M[OpenAI model]
@@ -31,7 +33,7 @@ flowchart LR
 
 Arrows show which component initiates a request. Queued work is delivered in the HTTP response. The queue is implemented in D1 with two job types: a natural-language `goal` for the agent, and a device `operation` for the runner. It does not use the Cloudflare Queues product.
 
-The background agent polls roughly every 10 seconds, starts a restricted Codex CLI process, and exposes 10 device tools through stdio MCP. The native HTTPS client is compiled into the WDA runner. Empty claims progressively hold the outbound HTTPS request for 5, 10 and 20 seconds, while the Worker checks D1 every 5 seconds. Queued work returns immediately; completed work resets the hold window and the next claim starts after 0.5 seconds. Heartbeats are persisted at most once per minute. See [polling and usage](docs/polling.md).
+In the optional persistent-host mode, the background agent polls roughly every 10 seconds, starts a restricted Codex CLI process, and exposes 10 device tools through stdio MCP. Local Codex and hosted assistants submit operations directly using their current model, with no background goal agent. The native HTTPS client is compiled into the WDA runner. Empty claims progressively hold the outbound HTTPS request for 5, 10 and 20 seconds, while the Worker checks D1 every 5 seconds. Queued work returns immediately; completed work resets the hold window and the next claim starts after 0.5 seconds. Heartbeats are persisted at most once per minute. See [polling and usage](docs/polling.md).
 
 ### Device-local action sequences
 
@@ -44,6 +46,15 @@ Existing service names and MCP tool names retain their `ipad-https-agent` and `i
 ## Hosted Bot alternative
 
 The optional [hosted Bot adapter](bot/README.md) lets an assistant such as Grok Bot use the existing operation queue directly from its cloud computer. It provides task budgets and saved screenshot attachments without running Codex or the Devbox goal loop. It uses the assistant's own allowance and never enables additional paid usage. Register `bot/mcp.mjs` as a Command / stdio MCP connector and install the workflow in `bot/SKILL.md`; see the documented live acceptance result and verify your own platform before retiring another controller.
+
+## Local Codex
+
+The same task-aware adapter can be registered in local Codex as `home-ios`, with
+`IPAD_CLIENT_KIND=codex` and its own optional `CODEX_TOKEN` runtime credential.
+The current Codex chat plans the task and calls 13 MCP tools directly; no nested
+Codex process or persistent-host agent is started. Local and hosted clients can
+remain configured together, but must take turns operating the shared device.
+See [local Codex setup and validation](local/README.md).
 
 ## Quick start
 

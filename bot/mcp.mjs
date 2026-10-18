@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Runs on the hosted Bot computer. No model API, goal runner or local Mac access.
+// Runs on the selected MCP client's computer. No model API or goal runner.
 import {createInterface} from 'node:readline';
 import {spawn} from 'node:child_process';
 import {readFile,writeFile,mkdir,rename,open,unlink} from 'node:fs/promises';
@@ -15,6 +15,8 @@ const artifacts=resolve(process.env.IPAD_ARTIFACT_DIR || join(directory,'screens
 const send=value=>process.stdout.write(JSON.stringify(value)+'\n');
 let backend, backendTaskId, backendId=0, current, serial=Promise.resolve();
 const pending=new Map();
+const clientKind=process.env.IPAD_CLIENT_KIND || 'bot';
+if(!['bot','codex'].includes(clientKind))throw new Error('Invalid IPAD_CLIENT_KIND');
 await mkdir(directory,{recursive:true,mode:0o700});
 await mkdir(artifacts,{recursive:true,mode:0o700});
 try {current=JSON.parse(await readFile(statePath,'utf8'));} catch(error) {if(error.code!=='ENOENT')throw error;}
@@ -146,7 +148,10 @@ async function handle(message) {
   if(message.id===undefined)return;
   try {
     let result;
-    if(message.method==='initialize')result={protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'ios-remote-bot',version:'1.0.0'},instructions:'Control only the configured personal iPad. Use the hosted Bot model directly; never start Codex or the Devbox goal agent. Begin one task, use its task_id, verify the result, attach a saved JPEG only if requested and image archiving is enabled, then end the task. Never replay uncertain actions.'};
+    if(message.method==='initialize')result={protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'ios-remote-'+clientKind,version:'1.0.0'},instructions:(clientKind==='codex'
+      ? 'Control the configured home iPad through HTTPS using this local Codex chat as the planner. Never start another Codex process, the Devbox goal agent or an external model API. Prefer this home-ios connection over legacy direct WDA for remote tasks. Read ipad_queue_status before work; a heartbeat older than stale_after_ms requires availability review. The hosted assistant shares this device, so controllers must take turns; the local lock is not a cross-host reservation. '
+      : 'Control only the configured personal iPad. Use the hosted Bot model directly; never start Codex or the Devbox goal agent. ')
+      +'Begin one task with ipad_task_begin, use its task_id on every device call, verify the actual result, attach a saved JPEG only if requested and image archiving is enabled, then call ipad_task_end. Use ipad_sequence for time-sensitive controls. Never replay uncertain actions or open a new task to evade a budget.'};
     else if(message.method==='ping')result={};
     else if(message.method==='tools/list')result=await listTools();
     else if(message.method==='tools/call') {
