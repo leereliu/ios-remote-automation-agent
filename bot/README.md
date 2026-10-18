@@ -29,3 +29,19 @@ Before retiring another controller, stop its goal loop and verify no in-flight d
 On October 18, 2026, a Grok Bot on its own hosted computer controlled the existing physical iPad and returned an actual JPEG attachment in its conversation. The request was initiated through the iPhone app using iPhone Mirroring. The newest video was shorter than the original requested timestamp, so the owner changed the target to its displayed **02:00 / 02:15**. The Bot completed that target in six device tool calls and eight underlying operations, with no new Codex goal submitted. The player was visibly paused at 02:00, and the video title and publication date were checked in the same image. This validates the displayed seconds, not a decoded frame timestamp.
 
 The old Devbox agent was stopped and its startup links removed. The Mac stayed on as a chat and observation client; physically powering it off was not part of this acceptance run. Initial signing and runner recovery still require a paired Mac. Private credentials, screenshots, operation IDs and personal runtime state are excluded from the repository.
+
+## ChatGPT Dot terminal transport
+
+A hosted ChatGPT Dot also completed a live iPad task on October 18, 2026. Its
+cloud computer ran Node 24.19 and called this adapter through a terminal-launched
+stdio subprocess using newline-delimited JSON-RPC. Native MCP registration in
+the chat interface was not required or validated. The Dot used its own model,
+returned a real JPEG attachment showing a paused **01:00 / 02:15**, and submitted
+no Devbox goals. The Mac remained on as the setup and observation client.
+
+Use the separate optional runtime credential described above. Keep the repository,
+private config, task state and any terminal bootstrap helper in the assistant's
+persistent workspace, and save the workflow instructions using its supported
+skill or memory mechanism. Recheck these files after a cloud computer rebuild;
+workspace persistence is not guaranteed by this adapter. Assistant platform
+permissions, usage limits and file attachment support still apply.
